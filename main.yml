@@ -1,0 +1,150 @@
+- hosts: namenode
+  vars_files:
+    - vars.yml
+  tasks:
+  - name: Registering Namenode Facts in namenode_ip          
+    setup:
+    register: namenode_ip
+
+  - name: Downloading Java JDK from URL
+    get_url:
+      url: "http://35.244.242.82/yum/java/el7/x86_64/jdk-8u171-linux-x64.rpm"
+      dest: "/root/jdk-8u171-linux-x64.rpm"
+
+  - name: Downloading Hadoop file from URL
+    get_url:
+      url: "https://archive.apache.org/dist/hadoop/core/hadoop-1.2.1/hadoop-1.2.1-1.x86_64.rpm"
+      dest: "/root/hadoop-1.2.1-1.x86_64.rpm"
+
+  - name: Checking if Java JDK is installed or not
+    command: "rpm -q jdk1.8"
+    register: check_java
+    ignore_errors: yes
+
+  - debug:
+      var: check_java
+
+  - name: Installing Java JDK
+    command: "rpm -i /root/jdk-8u171-linux-x64.rpm"
+    when: '"is not installed" in check_java.stdout'
+
+  - name: Checking if Hadoop is installed or not
+    command: "rpm -q hadoop"
+    register: check_hadoop
+    ignore_errors: yes
+
+  - debug:
+      var: check_hadoop
+
+  - name: Installing Hadoop
+    command: "rpm -i /root/hadoop-1.2.1-1.x86_64.rpm --force"
+    when: '"is not installed" in check_hadoop.stdout'
+
+  - name: Namenode Directory creation
+    file:
+      state: directory
+      path: "{{ namenode_dir }}"
+    notify: Update the changes
+ 
+  - name: Setting up core-site.xml file
+    template:
+      dest: "/etc/hadoop/core-site.xml"
+      src: "/t11_1/namenode/core-site.xml"
+
+  - name: Setting up hdfs-site.xml file
+    template:
+      dest: "/etc/hadoop/hdfs-site.xml"
+      src: "/t11_1/namenode/hdfs-site.xml"
+
+  - name: Registering dummy host to pass on the namenode IP to the datanode by registering it to namenode_ip_new
+    add_host:
+      name: "Dummy_Host"
+      namenode_ip_new: "{{ namenode_ip }}"
+
+  handlers:
+  - name: Stop the Namenode process if it's already running
+    command: "hadoop-daemon.sh stop namenode"
+    ignore_errors: yes
+    listen: Update the changes
+
+  - name: Namenode Formatting
+    shell: "echo Y | hadoop namenode -format"
+    listen: Update the changes
+    
+  - name: Starting Namenode
+    command: "hadoop-daemon.sh  start namenode"
+    listen: Update the changes
+
+
+- hosts: datanode
+  gather_facts: false
+  vars_files:
+    - vars.yml
+  tasks:
+  - name: Storing the IP obtained from  namenode_ip_new to namenode_ip_updated
+    shell: echo "{{ hostvars['Dummy_Host']['namenode_ip_new']['ansible_facts']['ansible_all_ipv4_addresses'][0] }}" | tail -1
+    register: namenode_ip_updated
+  
+  - debug:
+      var: namenode_ip_updated.stdout
+
+  - name: Downloading Java JDK from URL
+    get_url:
+      url: "http://35.244.242.82/yum/java/el7/x86_64/jdk-8u171-linux-x64.rpm"
+      dest: "/root/jdk-8u171-linux-x64.rpm"
+
+  - name: Downloading Hadoop file from URL
+    get_url:
+      url: "https://archive.apache.org/dist/hadoop/core/hadoop-1.2.1/hadoop-1.2.1-1.x86_64.rpm"
+      dest: "/root/hadoop-1.2.1-1.x86_64.rpm"
+
+  - name: Checking if Java JDK is installed or not
+    command: "rpm -q jdk1.8"
+    register: check_java
+    ignore_errors: yes
+
+  - debug:
+      var: check_java
+      
+  - name: Installing Java JDK
+    command: "rpm -i /root/jdk-8u171-linux-x64.rpm"
+    when: '"is not installed" in check_java.stdout'
+
+  - name: Checking if Hadoop is installed or not
+    command: "rpm -q hadoop"
+    register: check_hadoop
+    ignore_errors: yes
+
+  - debug:
+      var: check_hadoop
+
+  - name: Installing Hadoop
+    command: "rpm -i /root/hadoop-1.2.1-1.x86_64.rpm --force"
+    when: '"is not installed" in check_hadoop.stdout'
+
+  - name: Datanode Directory creation
+    file:
+      state: directory
+      path: "{{ datanode_dir }}"
+    notify: Update the changes
+
+  - name: Setting up core-site.xml file
+    template:
+      dest: "/etc/hadoop/core-site.xml"
+      src: "/t11_1/datanode/core-site.xml"
+
+  - name: Setting up hdfs-site.xml file
+    template:
+      dest: "/etc/hadoop/hdfs-site.xml"
+      src: "/t11_1/datanode/hdfs-site.xml"
+
+  handlers:
+  - name: Stop the Datanode process if it's already running
+    command: "hadoop-daemon.sh stop datanode"
+    ignore_errors: yes
+    listen: Update the changes
+
+  - name: Starting Datanode
+    command: "hadoop-daemon.sh  start datanode"
+    listen: Update the changes
+  
