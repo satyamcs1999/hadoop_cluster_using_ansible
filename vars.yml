@@ -1,0 +1,2 @@
+namenode_dir: "/namenode"
+datanode_dir: "/datanode"
